@@ -1,0 +1,5 @@
+/models/review-summarization/facebook1/*
+/dataset/*
+/API/*
+!/API/main.py
+!/API/requirements.txt
