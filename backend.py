@@ -1,11 +1,15 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 import openai
+import os
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 app = Flask(__name__)
 
 
-MONGO_URI = "mongodb+srv://user1:1234@cluster0.63cfp.mongodb.net"
+MONGO_URI = os.getenv('MONGO_CONNECTION_STRING')
 client = MongoClient(MONGO_URI)
 
 
@@ -13,7 +17,7 @@ customer_db = client["customer_db"]
 user_review_collection = customer_db["user_review"]
 
 
-openai.api_key = "found in Jira"
+openai.api_key = os.getenv('MY_KEY')
 
 #  Predefined correction prompts
 CORRECTION_OPTIONS = {

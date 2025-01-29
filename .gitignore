@@ -3,3 +3,4 @@
 /API/*
 !/API/main.py
 !/API/requirements.txt
+.env
