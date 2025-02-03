@@ -63,7 +63,7 @@ def upload_reviews():
                 "ServiceText": sentiment_result["service"]["text"],
                 "ServiceSentiment": sentiment_result["service"]["sentiment"]
             }
-            # 计算情绪计数
+            
             for cat_data in sentiment_result.values():
                 s = cat_data.get("sentiment", "neutral")
                 sentiment_counts[s] += 1
@@ -117,7 +117,7 @@ def fetch_reviews():
                 "ServiceText": doc.get("ServiceText", ""),
                 "ServiceSentiment": doc.get("ServiceSentiment", "neutral")
             }
-            # 统计情感
+            
             for field in [
                 "DeliverySentiment", "QualitySentiment",
                 "PriceSentiment", "PackagingSentiment", "ServiceSentiment"
