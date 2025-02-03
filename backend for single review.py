@@ -4,7 +4,7 @@ import json
 
 app = Flask(__name__)
 
-openai.api_key = "in jira"
+openai.api_key = "key in jira"
 
 @app.route('/')
 def home():
@@ -35,15 +35,24 @@ def analyze_review():
 
 def analyze_sentiment(review_text):
     prompt = f"""
-    You are an assistant that extracts sentiments for a single review. Break the input into the categories:
-    delivery, quality, price, packaging, and service.
-    For each category, provide:
-    - The text related to the category.
-    - The sentiment (positive, negative, or neutral).
-    Respond in JSON format only, without any additional explanation or markdown formatting.
-    Input: "{review_text}"
-    Output:
-    """
+                You are an assistant that extracts sentiments for product reviews.
+                The user text may be in English, German, or a mixture of both.
+
+                Rules for final language output:
+                - If the entire text is in German, respond in German.
+                - If the entire text is in English, respond in English.
+                - If the text is a mixture of English and German, respond entirely in English.
+
+                Always respond in valid JSON with exactly five keys: "delivery", "quality", "price", "packaging", and "service".
+                For each key, provide:
+                  - "text": the relevant portion of the review (in the chosen language),
+                  - "sentiment": one of "positive", "negative", or "neutral".
+
+                No extra keys, no extra text—only the JSON.
+
+                Input: "{review_text}"
+                Output:
+            """
     return gpt_request(prompt)
 
 def clean_response(response_text):
