@@ -145,17 +145,17 @@ def generate_summary(sentiment_counts):
         - Negative mentions: {sentiment_counts['negative']}
         - Neutral mentions: {sentiment_counts['neutral']}
 
-        Write a brief and natural-sounding summary that captures the overall sentiment. 
-        - If positive mentions are high, highlight key strengths simply.
-        - If negative mentions are significant, point out the main issue concisely.
-        - If there are many neutral mentions, briefly suggest what that might indicate.
-        - End with a short, practical suggestion for improvement.
+        Please write a concise, natural-sounding summary of the overall sentiment. 
+        - If positive mentions are high, highlight the key strengths in a friendly, encouraging tone.
+        - If negative mentions are significant, acknowledge the main issue succinctly, and include a gentle, constructive idea for improvement.
+        - If there are many neutral mentions, briefly suggest why customers might not be strongly positive or negative, and include a small recommendation to help convert neutral experiences into positive ones.
+        - End with a single, practical action or advice that could make the biggest difference going forward.
 
-        Keep it short and impactful—no unnecessary details or deep analysis.
-        
-        Return the response as a JSON object:
+        Aim to sound helpful and human, but keep it short and impactful—avoid unnecessary detail or deep analysis.
+
+        Finally, return your response as a JSON object in the format:
         {{
-            "summary": "Your concise summary here."
+            "summary": "Your personalized summary here."
         }}
     """
     result = gpt_request(prompt)
