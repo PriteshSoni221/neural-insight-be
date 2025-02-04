@@ -1,13 +1,17 @@
-from flask import Flask, request, jsonify
+from flask import Flask, logging, request, jsonify
 from pymongo import MongoClient
 import openai
 import os
 from dotenv import load_dotenv
+from flask_cors import CORS, cross_origin
 
-load_dotenv() 
+load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
+cors = CORS(app, resources={r"/*": {"origins": "http://localhost:4200"}})
 
+# logging.getLogger('flask_cors').level = logging.DEBUG
 
 MONGO_URI = os.getenv('MONGO_CONNECTION_STRING')
 client = MongoClient(MONGO_URI)
@@ -37,53 +41,126 @@ CORRECTION_OPTIONS = {
     "more_context_needed": "Expand the analysis by taking into account the full review, ensuring that nuances or implications are included."
 }
 
+
 @app.route('/')
 def home():
     return "Hey!"
 
-# Upload reviews and perform sentiment analysis
-@app.route('/upload_reviews', methods=['POST'])
-def upload_reviews():
+
+@app.route('/summarize', methods=['POST'])
+@cross_origin()
+def summarize():
     try:
         data = request.json
-        product_id = data.get("product_id")
-        reviews = data.get("reviews")
-
-        if not product_id or not reviews:
-            return jsonify({"error": "Product ID and reviews are required"}), 400
-
-        analyzed_reviews = []
-        for review in reviews:
-            review_text = review.get("text")
-            if review_text:
-                sentiment_result = analyze_sentiment(review_text)
-                if sentiment_result:
-                    analysis_result = {
-                        "input": review_text,
-                        "output": sentiment_result,
-                        "history": []
-                    }
-                    analyzed_reviews.append(analysis_result)
-
-                    # Save to MongoDB
-                    inserted_review = user_review_collection.insert_one({
-                        "product_id": product_id,
-                        "review": analysis_result
-                    })
-
-                    # Add MongoDB's `_id` for reference
-                    analysis_result["_id"] = str(inserted_review.inserted_id)
-
-                else:
-                    return jsonify({"error": "Sentiment analysis failed"}), 500
-
-        return jsonify({"product_id": product_id, "analyzed_reviews": analyzed_reviews}), 200
+        review = data.get("review")
+        return jsonify({
+            "input": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+            "output": {
+                "delivery": {
+                    "sentiment": "positive",
+                    "text": "The item arrived before I expected"
+                },
+                "packaging": {
+                    "sentiment": "negative",
+                    "text": "the manual wasn't included in the box"
+                },
+                "price": {
+                    "sentiment": "neutral",
+                    "text": ""
+                },
+                "quality": {
+                    "sentiment": "negative",
+                    "text": "unfortunately the manual wasn't included in the box"
+                },
+                "service": {
+                    "sentiment": "neutral",
+                    "text": ""
+                }
+            }
+        }), 200
 
     except Exception as e:
         print(f"Error in upload_reviews: {e}")
         return jsonify({"error": "An error occurred while processing reviews"}), 500
 
+# Upload reviews and perform sentiment analysis
+
+
+@app.route('/upload-reviews', methods=['POST'])
+@cross_origin()
+def upload_reviews():
+    try:
+        data = request.json
+        product_id = data.get("productID")
+        reviews = data.get("fileContent", {}).get("reviews", [])
+        is_dummy = data.get("isDummy")
+
+        if is_dummy:
+            analyzed_reviews = [
+                {
+                    "_id": "679bb4aa1b46d8cf42230454",
+                    "history": [],
+                    "input": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                    "output": {
+                        "delivery": {
+                            "sentiment": "positive",
+                            "text": "The item arrived before I expected"
+                        },
+                        "packaging": {
+                            "sentiment": "negative",
+                            "text": "the manual wasn't included in the box"
+                        },
+                        "price": {
+                            "sentiment": "neutral",
+                            "text": ""
+                        },
+                        "quality": {
+                            "sentiment": "negative",
+                            "text": "unfortunately the manual wasn't included in the box"
+                        },
+                        "service": {
+                            "sentiment": "neutral",
+                            "text": ""
+                        }
+                    }
+                }
+            ]
+            dummy_summary = "Customers appreciate the product's features and usability, but some report issues with customer service. The high number of neutral mentions suggests that many customers are satisfied but not particularly impressed or disappointed. Improving customer service may shift more neutral buyers to a positive experience."
+            return jsonify({"productID": product_id, "analyzed_reviews": analyzed_reviews, "summary": dummy_summary}), 200
+
+        if not product_id or not reviews:
+            return jsonify({"error": "Product ID and reviews are required"}), 400
+
+        analyzed_reviews = []
+        for review_text in reviews:
+            sentiment_result = analyze_sentiment(review_text)
+            if sentiment_result:
+                analysis_result = {
+                    "input": review_text,
+                    "output": sentiment_result,
+                    "history": []
+                }
+                analyzed_reviews.append(analysis_result)
+
+                # Save to MongoDB
+                inserted_review = user_review_collection.insert_one({
+                    "product_id": product_id,
+                    "review": analysis_result
+                })
+
+                # Add MongoDB's `_id` for reference
+                analysis_result["_id"] = str(inserted_review.inserted_id)
+            else:
+                return jsonify({"error": "Sentiment analysis failed"}), 500
+
+        return jsonify({"productID": product_id, "analyzed_reviews": analyzed_reviews}), 200
+
+    except Exception as e:
+        print(f"Error in upload_reviews: {e}")
+        return jsonify({"error": "An error occurred while processing reviews"}), 500
 #  correct sentiment analysis using predefined options
+
+
 @app.route('/correct_analysis', methods=['POST'])
 def correct_analysis():
     try:
@@ -93,7 +170,6 @@ def correct_analysis():
 
         if not review_id or correction_type not in CORRECTION_OPTIONS:
             return jsonify({"error": "Invalid review ID or correction type"}), 400
-
 
         review = user_review_collection.find_one({"_id": review_id})
         if not review:
@@ -105,10 +181,12 @@ def correct_analysis():
 
         # Use predefined correction prompt
         correction_prompt = CORRECTION_OPTIONS[correction_type]
-        refined_result = refine_analysis(review_text, correction_prompt, history)
+        refined_result = refine_analysis(
+            review_text, correction_prompt, history)
 
         if refined_result:
-            history.append({"correction_type": correction_type, "output": refined_result})
+            history.append({"correction_type": correction_type,
+                           "output": refined_result})
             user_review_collection.update_one(
                 {"_id": review_id},
                 {"$set": {"review.output": refined_result, "review.history": history}}
@@ -126,21 +204,53 @@ def correct_analysis():
         print(f"Error in correct_analysis: {e}")
         return jsonify({"error": "An error occurred while correcting the analysis"}), 500
 
-#  sentiment analysis
+
+@app.route('/analyze_review', methods=['POST'])
+def analyze_review():
+    try:
+        data = request.json
+        review_text = data.get("review")
+
+        if not review_text:
+            return jsonify({"error": "Review text is required"}), 400
+
+        sentiment_result = analyze_sentiment(review_text)
+
+        if sentiment_result:
+            return jsonify({
+                "input": review_text,
+                "output": sentiment_result
+            }), 200
+        else:
+            return jsonify({"error": "Sentiment analysis failed"}), 500
+
+    except Exception as e:
+        print(f"Error in analyze_review: {e}")
+        return jsonify({"error": "An error occurred while processing the review"}), 500
+
+
 def analyze_sentiment(review_text):
     prompt = f"""
-        You are an assistant that extracts sentiments for reviews. Break the input into the categories:
-        delivery, quality, price, packaging, and service.
-        For each category, provide:
-        - The text related to the category.
-        - The sentiment (positive, negative, or neutral).
-        Respond in JSON format only.
-        Input: "{review_text}"
-        Output:
+    You are an assistant that extracts sentiments for a single review. Break the input into the categories:
+    delivery, quality, price, packaging, and service.
+    For each category, provide:
+    - The text related to the category.
+    - The sentiment (positive, negative, or neutral).
+    Respond in JSON format only, without any additional explanation or markdown formatting.
+    Input: "{review_text}"
+    Output:
     """
     return gpt_request(prompt)
 
-#  using predefined correction prompts
+
+def clean_response(response_text):
+
+    response_text = response_text.strip()
+    if response_text.startswith("```") and response_text.endswith("```"):
+        response_text = response_text.strip("```")
+    return response_text
+
+
 def refine_analysis(review_text, correction_type, history):
     """
     Automatically refines sentiment analysis based on predefined correction options.
@@ -148,14 +258,12 @@ def refine_analysis(review_text, correction_type, history):
     - Automatically builds history of previous corrections.
     """
 
-
-    correction_prompt = CORRECTION_OPTIONS.get(correction_type, "Ensure the analysis is accurate.")
-
+    correction_prompt = CORRECTION_OPTIONS.get(
+        correction_type, "Ensure the analysis is accurate.")
 
     previous_prompts = "\n".join(
         [f"- {CORRECTION_OPTIONS.get(h['correction_type'], 'Previous correction applied.')}" for h in history]
     )
-
 
     prompt = f"""
         You are refining sentiment analysis for a customer review.
@@ -172,19 +280,101 @@ def refine_analysis(review_text, correction_type, history):
     return gpt_request(prompt)
 
 
-# this is for openai
+@app.route('/fetch_reviews', methods=['GET'])
+@cross_origin()
+def fetch_reviews():
+    try:
+
+        product_id_raw = request.args.get("productId")
+        if not product_id_raw:
+            return jsonify({"error": "Product ID is required"}), 400
+
+        try:
+            product_id = int(product_id_raw)
+        except ValueError:
+            return jsonify({"error": "Product ID must be an integer"}), 400
+
+        reviews_cursor = user_review_collection.find(
+            {"Product_id": product_id})
+        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+        fetched_reviews = []
+
+        for doc in reviews_cursor:
+            review_data = {
+                "_id": str(doc["_id"]),
+                "Product_id": doc.get("Product_id"),
+                "Text": doc.get("Text", ""),
+                "DeliveryText": doc.get("DeliveryText", ""),
+                "DeliverySentiment": doc.get("DeliverySentiment", "neutral"),
+                "QualityText": doc.get("QualityText", ""),
+                "QualitySentiment": doc.get("QualitySentiment", "neutral"),
+                "PriceText": doc.get("PriceText", ""),
+                "PriceSentiment": doc.get("PriceSentiment", "neutral"),
+                "PackagingText": doc.get("PackagingText", ""),
+                "PackagingSentiment": doc.get("PackagingSentiment", "neutral"),
+                "ServiceText": doc.get("ServiceText", ""),
+                "ServiceSentiment": doc.get("ServiceSentiment", "neutral")
+            }
+
+            for field in [
+                "DeliverySentiment", "QualitySentiment",
+                "PriceSentiment", "PackagingSentiment", "ServiceSentiment"
+            ]:
+                sentiment_counts[review_data[field]] += 1
+
+            fetched_reviews.append(review_data)
+
+        summary = generate_summary(sentiment_counts)
+        return jsonify({
+            "productId": product_id,
+            "analyzed_reviews": fetched_reviews,
+            "summary": summary
+        }), 200
+
+    except Exception as e:
+        print(f"Error in fetch_reviews: {e}")
+        return jsonify({"error": "An error occurred while fetching reviews"}), 500
+
+
+def generate_summary(sentiment_counts):
+    prompt = f"""
+        Based on the following customer feedback statistics:
+        - Positive mentions: {sentiment_counts['positive']}
+        - Negative mentions: {sentiment_counts['negative']}
+        - Neutral mentions: {sentiment_counts['neutral']}
+
+        Please write a concise, natural-sounding summary of the overall sentiment. 
+        - If positive mentions are high, highlight the key strengths in a friendly, encouraging tone.
+        - If negative mentions are significant, acknowledge the main issue succinctly, and include a gentle, constructive idea for improvement.
+        - If there are many neutral mentions, briefly suggest why customers might not be strongly positive or negative, and include a small recommendation to help convert neutral experiences into positive ones.
+        - End with a single, practical action or advice that could make the biggest difference going forward.
+
+        Aim to sound helpful and human, but keep it short and impactful—avoid unnecessary detail or deep analysis.
+
+        Finally, return your response as a JSON object in the format:
+        {{
+            "summary": "Your personalized summary here."
+        }}
+    """
+    result = gpt_request(prompt)
+    if isinstance(result, dict):
+        return result.get("summary", "Summary generation failed")
+    return "Summary generation failed"
+
 def gpt_request(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
+            max_tokens=1000
         )
         result = response["choices"][0]["message"]["content"]
         return eval(result)  # Convert JSON string to dictionary
     except Exception as e:
         print(f"Error in GPT request: {e}")
         return None
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
