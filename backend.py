@@ -279,6 +279,8 @@ def refine_analysis(review_text, correction_type, history):
     """
     return gpt_request(prompt)
 
+# getReviewsByProduct
+
 
 @app.route('/fetch_reviews', methods=['GET'])
 @cross_origin()
@@ -289,10 +291,125 @@ def fetch_reviews():
         if not product_id_raw:
             return jsonify({"error": "Product ID is required"}), 400
 
+        
         try:
             product_id = int(product_id_raw)
         except ValueError:
             return jsonify({"error": "Product ID must be an integer"}), 400
+        
+        if product_id == 0:
+            return {
+                "analyzed_reviews": [
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "neutral",
+                        "QualityText": "",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67955037a049e8ca17d13a7a"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a109e796becdb0d490fb9d"
+                    },
+                    {
+                        "DeliverySentiment": "neutral",
+                        "DeliveryText": "",
+                        "PackagingSentiment": "positive",
+                        "PackagingText": "The packaging was secure",
+                        "PriceSentiment": "positive",
+                        "PriceText": "Great value for the money",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "positive",
+                        "QualityText": "everything works just fine",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "Great value for the money. The packaging was secure, and everything works just fine.",
+                        "_id": "67a109ed96becdb0d490fb9e"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "Delivery was on time, though.",
+                        "PackagingSentiment": "neutral",
+                        "PackagingText": "",
+                        "PriceSentiment": "negative",
+                        "PriceText": "I think it's overpriced",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "given the flimsy feeling of the materials.",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "I think it's overpriced, given the flimsy feeling of the materials. Delivery was on time, though.",
+                        "_id": "67a109f496becdb0d490fb9f"
+                    },
+                    {
+                        "DeliverySentiment": "neutral",
+                        "DeliveryText": "",
+                        "PackagingSentiment": "neutral",
+                        "PackagingText": "",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "The product is decent for a budget option.",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "neutral",
+                        "QualityText": "The product is decent for a budget option.",
+                        "ServiceSentiment": "positive",
+                        "ServiceText": "Customer service was very friendly when I called.",
+                        "Text": "Customer service was very friendly when I called. The product is decent for a budget option.",
+                        "_id": "67a109f896becdb0d490fba0"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "unfortunately the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "unfortunately the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a10c0289f5502b0c8386d6"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "unfortunately the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "unfortunately the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a10c6c89f5502b0c8386d7"
+                    }
+                ],
+                "productId": 34942640,
+                "summary": "The feedback shows a balanced mix of positive and negative sentiments, with a notably high number of neutral mentions. This suggests that while some customers are satisfied and others have concerns, many are not fully engaged or impacted. To enhance the overall customer experience, consider focusing on increasing the distinctiveness and appeal of your offerings to convert neutral perceptions into positive ones. A good starting point could be to more actively solicit and act on customer feedback to understand and address specific areas of ambiguity or indifference."
+            }
+
 
         reviews_cursor = user_review_collection.find(
             {"Product_id": product_id})
