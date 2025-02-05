@@ -214,6 +214,33 @@ def analyze_review():
         if not review_text:
             return jsonify({"error": "Review text is required"}), 400
 
+        if review_text == "0":
+            return jsonify({
+                "input": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                "output": {
+                    "delivery": {
+                        "sentiment": "positive",
+                        "text": "The item arrived before I expected"
+                    },
+                    "packaging": {
+                        "sentiment": "negative",
+                        "text": "unfortunately the manual wasn't included in the box"
+                    },
+                    "price": {
+                        "sentiment": "neutral",
+                        "text": ""
+                    },
+                    "quality": {
+                        "sentiment": "neutral",
+                        "text": ""
+                    },
+                    "service": {
+                        "sentiment": "neutral",
+                        "text": ""
+                    }
+                }
+            })
+
         sentiment_result = analyze_sentiment(review_text)
 
         if sentiment_result:
@@ -291,12 +318,11 @@ def fetch_reviews():
         if not product_id_raw:
             return jsonify({"error": "Product ID is required"}), 400
 
-        
         try:
             product_id = int(product_id_raw)
         except ValueError:
             return jsonify({"error": "Product ID must be an integer"}), 400
-        
+
         if product_id == 0:
             return {
                 "analyzed_reviews": [
@@ -410,7 +436,6 @@ def fetch_reviews():
                 "summary": "The feedback shows a balanced mix of positive and negative sentiments, with a notably high number of neutral mentions. This suggests that while some customers are satisfied and others have concerns, many are not fully engaged or impacted. To enhance the overall customer experience, consider focusing on increasing the distinctiveness and appeal of your offerings to convert neutral perceptions into positive ones. A good starting point could be to more actively solicit and act on customer feedback to understand and address specific areas of ambiguity or indifference."
             }
 
-
         reviews_cursor = user_review_collection.find(
             {"Product_id": product_id})
         sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
@@ -477,6 +502,7 @@ def generate_summary(sentiment_counts):
     if isinstance(result, dict):
         return result.get("summary", "Summary generation failed")
     return "Summary generation failed"
+
 
 def gpt_request(prompt):
     try:
