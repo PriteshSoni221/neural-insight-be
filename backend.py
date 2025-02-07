@@ -83,82 +83,138 @@ def summarize():
         print(f"Error in upload_reviews: {e}")
         return jsonify({"error": "An error occurred while processing reviews"}), 500
 
-# Upload reviews and perform sentiment analysis
-
 
 @app.route('/upload-reviews', methods=['POST'])
 @cross_origin()
 def upload_reviews():
     try:
         data = request.json
-        product_id = data.get("productID")
+
+        product_id_raw = data.get("productID")
+        if product_id_raw is None:
+            return jsonify({"error": "Missing productID"}), 400
+
+        try:
+            product_id = int(product_id_raw)
+        except ValueError:
+            return jsonify({"error": "Product ID must be an integer"}), 400
+
         reviews = data.get("fileContent", {}).get("reviews", [])
         is_dummy = data.get("isDummy")
 
         if is_dummy:
             analyzed_reviews = [
                 {
-                    "_id": "679bb4aa1b46d8cf42230454",
-                    "history": [],
-                    "input": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
-                    "output": {
-                        "delivery": {
-                            "sentiment": "positive",
-                            "text": "The item arrived before I expected"
-                        },
-                        "packaging": {
-                            "sentiment": "negative",
-                            "text": "the manual wasn't included in the box"
-                        },
-                        "price": {
-                            "sentiment": "neutral",
-                            "text": ""
-                        },
-                        "quality": {
-                            "sentiment": "negative",
-                            "text": "unfortunately the manual wasn't included in the box"
-                        },
-                        "service": {
-                            "sentiment": "neutral",
-                            "text": ""
-                        }
-                    }
+                    "DeliverySentiment": "positive",
+                    "DeliveryText": "The item arrived before I expected",
+                    "PackagingSentiment": "negative",
+                    "PackagingText": "the manual wasn't included in the box",
+                    "PriceSentiment": "neutral",
+                    "PriceText": "",
+                    "Product_id": 34942640,
+                    "QualitySentiment": "negative",
+                    "QualityText": "unfortunately the manual wasn't included in the box",
+                    "ServiceSentiment": "neutral",
+                    "ServiceText": "",
+                    "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                    "_id": "67a64d427eff5734c01e1afe"
+                },
+                {
+                    "DeliverySentiment": "neutral",
+                    "DeliveryText": "",
+                    "PackagingSentiment": "positive",
+                    "PackagingText": "The packaging was secure",
+                    "PriceSentiment": "positive",
+                    "PriceText": "Great value for the money.",
+                    "Product_id": 34942640,
+                    "QualitySentiment": "positive",
+                    "QualityText": "everything works just fine.",
+                    "ServiceSentiment": "neutral",
+                    "ServiceText": "",
+                    "Text": "Great value for the money. The packaging was secure, and everything works just fine.",
+                    "_id": "67a64d467eff5734c01e1aff"
+                },
+                {
+                    "DeliverySentiment": "positive",
+                    "DeliveryText": "Delivery was on time, though.",
+                    "PackagingSentiment": "neutral",
+                    "PackagingText": "",
+                    "PriceSentiment": "negative",
+                    "PriceText": "I think it's overpriced",
+                    "Product_id": 34942640,
+                    "QualitySentiment": "negative",
+                    "QualityText": "given the flimsy feeling of the materials.",
+                    "ServiceSentiment": "neutral",
+                    "ServiceText": "",
+                    "Text": "I think it's overpriced, given the flimsy feeling of the materials. Delivery was on time, though.",
+                    "_id": "67a64d4b7eff5734c01e1b00"
+                },
+                {
+                    "DeliverySentiment": "neutral",
+                    "DeliveryText": "",
+                    "PackagingSentiment": "neutral",
+                    "PackagingText": "",
+                    "PriceSentiment": "neutral",
+                    "PriceText": "The product is decent for a budget option.",
+                    "Product_id": 34942640,
+                    "QualitySentiment": "neutral",
+                    "QualityText": "The product is decent for a budget option.",
+                    "ServiceSentiment": "positive",
+                    "ServiceText": "Customer service was very friendly when I called.",
+                    "Text": "Customer service was very friendly when I called. The product is decent for a budget option.",
+                    "_id": "67a64d4f7eff5734c01e1b01"
                 }
             ]
-            dummy_summary = "Customers appreciate the product's features and usability, but some report issues with customer service. The high number of neutral mentions suggests that many customers are satisfied but not particularly impressed or disappointed. Improving customer service may shift more neutral buyers to a positive experience."
+            dummy_summary = "Customer sentiment shows a mix of reactions with a lean towards positive experiences, as indicated by the 6 positive mentions compared to 4 negatives. The 10 neutral mentions suggest that while many customers are satisfied, there is room to elevate their experience. Focusing on enhancing service details or product features could convert these neutral impressions into more positive ones. A practical step forward would be to closely analyze feedback from neutral mentions to identify common factors that could be improved to delight these customers."
             return jsonify({"productID": product_id, "analyzed_reviews": analyzed_reviews, "summary": dummy_summary}), 200
+        if not reviews:
+            return jsonify({"error": "No reviews provided"}), 400
 
-        if not product_id or not reviews:
-            return jsonify({"error": "Product ID and reviews are required"}), 400
+        analyzed_docs = []
+        sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
 
-        analyzed_reviews = []
-        for review_text in reviews:
+        for review_obj in reviews:
+            review_text = review_obj.get("text", "").strip()
+            if not review_text:
+                continue
+
             sentiment_result = analyze_sentiment(review_text)
-            if sentiment_result:
-                analysis_result = {
-                    "input": review_text,
-                    "output": sentiment_result,
-                    "history": []
-                }
-                analyzed_reviews.append(analysis_result)
-
-                # Save to MongoDB
-                inserted_review = user_review_collection.insert_one({
-                    "product_id": product_id,
-                    "review": analysis_result
-                })
-
-                # Add MongoDB's `_id` for reference
-                analysis_result["_id"] = str(inserted_review.inserted_id)
-            else:
+            if not isinstance(sentiment_result, dict):
                 return jsonify({"error": "Sentiment analysis failed"}), 500
 
-        return jsonify({"productID": product_id, "analyzed_reviews": analyzed_reviews}), 200
+            doc_to_insert = {
+                "Product_id": product_id,
+                "Text": review_text,
+                "DeliveryText": sentiment_result["delivery"]["text"],
+                "DeliverySentiment": sentiment_result["delivery"]["sentiment"],
+                "QualityText": sentiment_result["quality"]["text"],
+                "QualitySentiment": sentiment_result["quality"]["sentiment"],
+                "PriceText": sentiment_result["price"]["text"],
+                "PriceSentiment": sentiment_result["price"]["sentiment"],
+                "PackagingText": sentiment_result["packaging"]["text"],
+                "PackagingSentiment": sentiment_result["packaging"]["sentiment"],
+                "ServiceText": sentiment_result["service"]["text"],
+                "ServiceSentiment": sentiment_result["service"]["sentiment"]
+            }
+
+            for cat_data in sentiment_result.values():
+                s = cat_data.get("sentiment", "neutral")
+                sentiment_counts[s] += 1
+
+            inserted = user_review_collection.insert_one(doc_to_insert)
+            doc_to_insert["_id"] = str(inserted.inserted_id)
+            analyzed_docs.append(doc_to_insert)
+
+        summary = generate_summary(sentiment_counts)
+        return jsonify({
+            "productId": product_id,
+            "analyzed_reviews": analyzed_docs,
+            "summary": summary
+        }), 200
 
     except Exception as e:
         print(f"Error in upload_reviews: {e}")
         return jsonify({"error": "An error occurred while processing reviews"}), 500
-#  correct sentiment analysis using predefined options
 
 
 @app.route('/correct_analysis', methods=['POST'])
@@ -216,23 +272,23 @@ def analyze_review():
 
         if review_text == "0":
             return jsonify({
-                "input": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                "input": "I think it's overpriced, given the flimsy feeling of the materials. Delivery was on time, though.",
                 "output": {
                     "delivery": {
                         "sentiment": "positive",
-                        "text": "The item arrived before I expected"
+                        "text": "Delivery was on time, though."
                     },
                     "packaging": {
-                        "sentiment": "negative",
-                        "text": "unfortunately the manual wasn't included in the box"
+                        "sentiment": "neutral",
+                        "text": ""
                     },
                     "price": {
-                        "sentiment": "neutral",
-                        "text": ""
+                        "sentiment": "negative",
+                        "text": "I think it's overpriced"
                     },
                     "quality": {
-                        "sentiment": "neutral",
-                        "text": ""
+                        "sentiment": "negative",
+                        "text": "given the flimsy feeling of the materials."
                     },
                     "service": {
                         "sentiment": "neutral",
@@ -258,15 +314,24 @@ def analyze_review():
 
 def analyze_sentiment(review_text):
     prompt = f"""
-    You are an assistant that extracts sentiments for a single review. Break the input into the categories:
-    delivery, quality, price, packaging, and service.
-    For each category, provide:
-    - The text related to the category.
-    - The sentiment (positive, negative, or neutral).
-    Respond in JSON format only, without any additional explanation or markdown formatting.
-    Input: "{review_text}"
-    Output:
-    """
+                You are an assistant that extracts sentiments for product reviews.
+                The user text may be in English, German, or a mixture of both.
+
+                Rules for final language output:
+                - If the entire text is in German, respond in German.
+                - If the entire text is in English, respond in English.
+                - If the text is a mixture of English and German, respond entirely in English.
+
+                Always respond in valid JSON with exactly five keys: "delivery", "quality", "price", "packaging", and "service".
+                For each key, provide:
+                  - "text": the relevant portion of the review (in the chosen language),
+                  - "sentiment": one of "positive", "negative", or "neutral".
+
+                No extra keys, no extra text—only the JSON.
+
+                Input: "{review_text}"
+                Output:
+            """
     return gpt_request(prompt)
 
 
@@ -324,7 +389,7 @@ def fetch_reviews():
             return jsonify({"error": "Product ID must be an integer"}), 400
 
         if product_id == 0:
-            return {
+            return jsonify({
                 "analyzed_reviews": [
                     {
                         "DeliverySentiment": "positive",
@@ -339,7 +404,7 @@ def fetch_reviews():
                         "ServiceSentiment": "neutral",
                         "ServiceText": "",
                         "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
-                        "_id": "67955037a049e8ca17d13a7a"
+                        "_id": "67a39d96c0342bd8a04a47ce"
                     },
                     {
                         "DeliverySentiment": "positive",
@@ -354,7 +419,52 @@ def fetch_reviews():
                         "ServiceSentiment": "neutral",
                         "ServiceText": "",
                         "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
-                        "_id": "67a109e796becdb0d490fb9d"
+                        "_id": "67a6493bf6d62c09d268df68"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "unfortunately the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a64a81f6d62c09d268df69"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a64b3cf6d62c09d268df6a"
+                    },
+                    {
+                        "DeliverySentiment": "positive",
+                        "DeliveryText": "The item arrived before I expected",
+                        "PackagingSentiment": "negative",
+                        "PackagingText": "unfortunately the manual wasn't included in the box",
+                        "PriceSentiment": "neutral",
+                        "PriceText": "",
+                        "Product_id": 34942640,
+                        "QualitySentiment": "negative",
+                        "QualityText": "unfortunately the manual wasn't included in the box",
+                        "ServiceSentiment": "neutral",
+                        "ServiceText": "",
+                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
+                        "_id": "67a64b55f6d62c09d268df6b"
                     },
                     {
                         "DeliverySentiment": "neutral",
@@ -362,14 +472,14 @@ def fetch_reviews():
                         "PackagingSentiment": "positive",
                         "PackagingText": "The packaging was secure",
                         "PriceSentiment": "positive",
-                        "PriceText": "Great value for the money",
+                        "PriceText": "Great value for the money.",
                         "Product_id": 34942640,
                         "QualitySentiment": "positive",
-                        "QualityText": "everything works just fine",
+                        "QualityText": "everything works just fine.",
                         "ServiceSentiment": "neutral",
                         "ServiceText": "",
                         "Text": "Great value for the money. The packaging was secure, and everything works just fine.",
-                        "_id": "67a109ed96becdb0d490fb9e"
+                        "_id": "67a64b58f6d62c09d268df6c"
                     },
                     {
                         "DeliverySentiment": "positive",
@@ -380,61 +490,31 @@ def fetch_reviews():
                         "PriceText": "I think it's overpriced",
                         "Product_id": 34942640,
                         "QualitySentiment": "negative",
-                        "QualityText": "given the flimsy feeling of the materials.",
+                        "QualityText": "given the flimsy feeling of the materials",
                         "ServiceSentiment": "neutral",
                         "ServiceText": "",
                         "Text": "I think it's overpriced, given the flimsy feeling of the materials. Delivery was on time, though.",
-                        "_id": "67a109f496becdb0d490fb9f"
+                        "_id": "67a64b5ef6d62c09d268df6d"
                     },
                     {
                         "DeliverySentiment": "neutral",
                         "DeliveryText": "",
                         "PackagingSentiment": "neutral",
                         "PackagingText": "",
-                        "PriceSentiment": "neutral",
-                        "PriceText": "The product is decent for a budget option.",
+                        "PriceSentiment": "positive",
+                        "PriceText": "decent for a budget option",
                         "Product_id": 34942640,
                         "QualitySentiment": "neutral",
                         "QualityText": "The product is decent for a budget option.",
                         "ServiceSentiment": "positive",
                         "ServiceText": "Customer service was very friendly when I called.",
                         "Text": "Customer service was very friendly when I called. The product is decent for a budget option.",
-                        "_id": "67a109f896becdb0d490fba0"
-                    },
-                    {
-                        "DeliverySentiment": "positive",
-                        "DeliveryText": "The item arrived before I expected",
-                        "PackagingSentiment": "negative",
-                        "PackagingText": "unfortunately the manual wasn't included in the box",
-                        "PriceSentiment": "neutral",
-                        "PriceText": "",
-                        "Product_id": 34942640,
-                        "QualitySentiment": "negative",
-                        "QualityText": "unfortunately the manual wasn't included in the box",
-                        "ServiceSentiment": "neutral",
-                        "ServiceText": "",
-                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
-                        "_id": "67a10c0289f5502b0c8386d6"
-                    },
-                    {
-                        "DeliverySentiment": "positive",
-                        "DeliveryText": "The item arrived before I expected",
-                        "PackagingSentiment": "negative",
-                        "PackagingText": "unfortunately the manual wasn't included in the box",
-                        "PriceSentiment": "neutral",
-                        "PriceText": "",
-                        "Product_id": 34942640,
-                        "QualitySentiment": "negative",
-                        "QualityText": "unfortunately the manual wasn't included in the box",
-                        "ServiceSentiment": "neutral",
-                        "ServiceText": "",
-                        "Text": "The item arrived before I expected, but unfortunately the manual wasn't included in the box.",
-                        "_id": "67a10c6c89f5502b0c8386d7"
+                        "_id": "67a64b62f6d62c09d268df6e"
                     }
                 ],
                 "productId": 34942640,
-                "summary": "The feedback shows a balanced mix of positive and negative sentiments, with a notably high number of neutral mentions. This suggests that while some customers are satisfied and others have concerns, many are not fully engaged or impacted. To enhance the overall customer experience, consider focusing on increasing the distinctiveness and appeal of your offerings to convert neutral perceptions into positive ones. A good starting point could be to more actively solicit and act on customer feedback to understand and address specific areas of ambiguity or indifference."
-            }
+                "summary": "Feedback shows an equal balance of positive and negative mentions, with a higher number of neutrals, suggesting customers are often ambivalent. To enhance customer satisfaction, consider focusing on specific areas mentioned in negative feedback for improvement. Additionally, identifying what could turn neutral experiences into positive ones could make a significant impact. Going forward, enhancing communication and response times might be a practical step to positively shift overall customer sentiment."
+            })
 
         reviews_cursor = user_review_collection.find(
             {"Product_id": product_id})
